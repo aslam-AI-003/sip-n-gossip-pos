@@ -67,7 +67,7 @@ try {
     await page.goto(`${BASE}/menu`);
     await page.getByRole('button', { name: 'Import', exact: true }).click();
     await page.getByRole('button', { name: 'Load built-in menu' }).click();
-    await page.getByText(/Import finished: 30 new categories, 2 new items/).waitFor();
+    await page.getByText(/Import finished: 30 new categories, 296 new items/).waitFor();
     await page.getByRole('button', { name: 'Import', exact: true }).click();
     await page.locator('textarea').fill([
       'Category,Item,Price,Description',
@@ -79,10 +79,19 @@ try {
     ].join('\n'));
     await page.getByRole('button', { name: /Import 5 items/ }).click();
     await page.getByText(/0 new categories, 4 new items, 1 existing/).waitFor();
-    return 'duplicate row skipped';
+    await page.goto(`${BASE}/pos`);
+    await page.locator('.pos-cats button', { hasText: 'Mojito' }).click();
+    await page.locator('button.product', { hasText: 'Bluecuracao' }).waitFor();
+    await page.locator('.search input').fill('watermelon');
+    await page.locator('button.product', { hasText: 'Mojito' }).first().waitFor();
+    await page.screenshot({ path: `${OUT}/desktop-menu-search.png` });
+    await page.locator('.search input').fill('');
+    return 'duplicate row skipped; real menu visible in POS';
   });
 
   await check('mark item unavailable blocks it in POS', async () => {
+    await page.goto(`${BASE}/menu`);
+    await page.locator('.search input').fill('E2E Mojito');
     const row = page.locator('tr', { hasText: 'E2E Mojito' });
     await row.getByRole('button', { name: 'Available', exact: true }).click();
     await row.getByRole('button', { name: 'Unavailable', exact: true }).waitFor();

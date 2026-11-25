@@ -73,6 +73,20 @@ export default function POS() {
     return list;
   }, [sellable, addons, search, activeCat]);
 
+  // Names used in more than one category (e.g. "Watermelon" juice and mojito)
+  // get the category appended on the bill so receipts are unambiguous.
+  const sharedNames = useMemo(() => {
+    const seen = new Map();
+    for (const p of sellable) {
+      const k = p.name.trim().toLowerCase();
+      if (!seen.has(k)) seen.set(k, new Set());
+      seen.get(k).add(p.categoryId);
+    }
+    return new Set([...seen].filter(([, cats]) => cats.size > 1).map(([k]) => k));
+  }, [sellable]);
+  const billName = (p) => (sharedNames.has(p.name.trim().toLowerCase()) && categoryById[p.categoryId]
+    ? `${p.name} (${categoryById[p.categoryId].name})` : p.name);
+
   // ---------- totals ----------
   const config = session.config || billConfigFromSettings(settings);
   const disc = canDiscount || session.version ? { type: discount.type, value: Number(discount.value) || 0 } : null;
@@ -86,7 +100,7 @@ export default function POS() {
       const i = ls.findIndex((l) => l.productId === p.id && !l.note && !l.saved);
       if (i >= 0) return ls.map((l, j) => (j === i ? { ...l, qty: l.qty + 1 } : l));
       return [...ls, {
-        lineId: lineKey(), productId: p.id, name: p.name, price: Number(p.price), qty: 1, note: '',
+        lineId: lineKey(), productId: p.id, name: billName(p), price: Number(p.price), qty: 1, note: '',
         category: categoryById[p.categoryId]?.name || '', isAddon: isAddonProduct(p),
       }];
     });
@@ -424,6 +438,8 @@ export default function POS() {
                 >
                   {p.image ? <img src={p.image} alt="" loading="lazy" /> : null}
                   <span className="p-name">{p.name}</span>
+                  {(activeCat === ALL || search) && sharedNames.has(p.name.trim().toLowerCase())
+                    ? <span className="p-desc" style={{ color: 'var(--emerald-2)' }}>{categoryById[p.categoryId]?.name}</span> : null}
                   {p.description ? <span className="p-desc">{p.description}</span> : null}
                   <span className="p-foot">
                     <span className="p-price">{fmtPrice(p.price)}</span>

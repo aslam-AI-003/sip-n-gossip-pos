@@ -142,7 +142,7 @@ Screenshots, the captured print output (`print-output.pdf/.png`) and exported re
 
 ## Menu status
 
-`src/data/menu.js` contains the 30 categories and the add-ons **Cheese Extra ₹10** and **Extra Mayonnaise ₹10**. The menu PDF has not been entered yet. Add the items in one of these ways:
+`src/data/menu.js` contains the full menu from the 8-page PDF: 30 categories, 296 items. Load it with **Menu → Import → Load built-in menu**. To add more items later:
 
 - Fill in `src/data/menu.js` and use **Menu → Import → Load built-in menu**. Existing items are never overwritten.
 - Use **Menu → Import → Paste CSV** with `Category,Item,Price,Description`.
