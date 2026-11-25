@@ -1,0 +1,164 @@
+rules_version = '2';
+
+// SIP N' GOSSIP CAFE POS - Firestore security rules.
+// Roles live in /users/{uid} { role: 'admin' | 'cashier', active: bool }.
+// Nothing is readable or writable without an active staff profile, except
+// /meta/setup (used for first-run detection and the connection heartbeat).
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function signedIn() { return request.auth != null; }
+    function userPath(uid) { return /databases/$(database)/documents/users/$(uid); }
+    function profile() { return get(userPath(request.auth.uid)).data; }
+    function isStaff() {
+      return signedIn() && exists(userPath(request.auth.uid)) && profile().active == true
+        && profile().role in ['admin', 'cashier'];
+    }
+    function isAdmin() { return isStaff() && profile().role == 'admin'; }
+    function appSettings() {
+      return exists(/databases/$(database)/documents/settings/app)
+        ? get(/databases/$(database)/documents/settings/app).data
+        : { 'cashierCanDiscount': false, 'cashierCanCancel': false };
+    }
+    function canDiscount() { return isAdmin() || appSettings().get('cashierCanDiscount', false) == true; }
+    function canCancel() { return isAdmin() || appSettings().get('cashierCanCancel', false) == true; }
+    function changed() { return request.resource.data.diff(resource.data).affectedKeys(); }
+    function isMoney(v) { return v is number && v >= 0; }
+
+    // ---------- First run / heartbeat ----------
+    match /meta/setup {
+      allow read: if true;
+      // Created in the same batch as the very first admin profile.
+      allow create: if signedIn()
+        && getAfter(userPath(request.auth.uid)).data.role == 'admin';
+      allow update, delete: if false;
+    }
+
+    // ---------- Staff profiles ----------
+    match /users/{uid} {
+      allow read: if signedIn() && (request.auth.uid == uid || isAdmin());
+      allow create: if
+        // Normal path: admin adds staff.
+        (isAdmin() && request.resource.data.role in ['admin', 'cashier'])
+        // Bootstrap path: first ever user becomes admin, only while no setup doc exists.
+        || (signedIn() && request.auth.uid == uid
+            && !exists(/databases/$(database)/documents/meta/setup)
+            && existsAfter(/databases/$(database)/documents/meta/setup)
+            && request.resource.data.role == 'admin'
+            && request.resource.data.active == true);
+      // Admins cannot demote or deactivate themselves (prevents lock-out).
+      allow update: if isAdmin()
+        && request.resource.data.role in ['admin', 'cashier']
+        && (uid != request.auth.uid
+            || (request.resource.data.role == 'admin' && request.resource.data.active == true));
+      allow delete: if false;
+    }
+
+    // ---------- Configuration ----------
+    match /settings/{id} {
+      allow read: if isStaff();
+      allow write: if isAdmin();
+    }
+
+    match /categories/{id} {
+      allow read: if isStaff();
+      allow write: if isAdmin();
+    }
+
+    match /products/{id} {
+      allow read: if isStaff();
+      allow create, update: if isAdmin()
+        && request.resource.data.name is string && request.resource.data.name.size() > 0
+        && isMoney(request.resource.data.price)
+        && request.resource.data.available is bool;
+      allow delete: if isAdmin();
+    }
+
+    match /tables/{id} {
+      allow read: if isStaff();
+      allow create, delete: if isAdmin();
+      allow update: if isAdmin()
+        || (isStaff() && changed().hasOnly(['activeOrderId', 'updatedAt']));
+    }
+
+    // ---------- Sequential numbers (order no, invoice no) ----------
+    match /counters/{name} {
+      allow read: if isStaff();
+      allow create: if isStaff() && request.resource.data.value == 1;
+      allow update: if isStaff() && request.resource.data.value == resource.data.value + 1;
+      allow delete: if false;
+    }
+
+    // ---------- Orders / bills ----------
+    match /orders/{orderId} {
+      allow read: if isStaff();
+
+      allow create: if isStaff()
+        && request.resource.data.createdBy == request.auth.uid
+        && request.resource.data.status in ['active', 'completed']
+        && request.resource.data.type in ['dine_in', 'takeaway', 'parcel']
+        && request.resource.data.orderNo is int
+        && request.resource.data.version == 1
+        && isMoney(request.resource.data.grandTotal)
+        && isMoney(request.resource.data.amountPaid)
+        && request.resource.data.amountPaid <= request.resource.data.grandTotal
+        && request.resource.data.amountRefunded == 0
+        && request.resource.data.refunds.size() == 0
+        && (request.resource.data.discount == null || canDiscount());
+
+      allow update: if isStaff()
+        && request.resource.data.orderNo == resource.data.orderNo
+        && request.resource.data.createdBy == resource.data.createdBy
+        && (
+          // Admin: full control (refunds, corrections).
+          isAdmin()
+          // Reprint bookkeeping on any order.
+          || changed().hasOnly(['printCount', 'lastPrintedAt'])
+          // Cashier editing / settling / cancelling an active order.
+          || (resource.data.status == 'active'
+              && request.resource.data.status in ['active', 'completed', 'cancelled']
+              && request.resource.data.version == resource.data.version + 1
+              && request.resource.data.refunds == resource.data.refunds
+              && request.resource.data.amountRefunded == resource.data.amountRefunded
+              && isMoney(request.resource.data.grandTotal)
+              && request.resource.data.amountPaid >= resource.data.amountPaid
+              && request.resource.data.amountPaid <= request.resource.data.grandTotal
+              && request.resource.data.payments.size() >= resource.data.payments.size()
+              && (request.resource.data.discount == resource.data.discount || canDiscount())
+              && (request.resource.data.status != 'cancelled' || canCancel()))
+          // Cashier collecting a pending balance on a completed bill.
+          || (resource.data.status == 'completed'
+              && changed().hasOnly(['payments', 'amountPaid', 'paymentStatus', 'updatedAt',
+                                    'updatedBy', 'version', 'printCount', 'lastPrintedAt'])
+              && request.resource.data.version == resource.data.version + 1
+              && request.resource.data.payments.size() >= resource.data.payments.size()
+              && request.resource.data.amountPaid >= resource.data.amountPaid
+              && request.resource.data.amountPaid <= resource.data.grandTotal)
+        );
+
+      // Bills are never deleted; cancel instead.
+      allow delete: if false;
+    }
+
+    // ---------- Payment ledger (one doc per payment / refund) ----------
+    match /payments/{paymentId} {
+      allow read: if isStaff();
+      allow create: if isStaff()
+        && request.resource.data.by == request.auth.uid
+        && request.resource.data.amount is number && request.resource.data.amount > 0
+        && request.resource.data.method in ['cash', 'upi', 'card', 'online']
+        && (request.resource.data.kind == 'payment'
+            || (request.resource.data.kind == 'refund' && isAdmin()));
+      allow update, delete: if false;
+    }
+
+    // ---------- Expenses (admin only) ----------
+    match /expenses/{id} {
+      allow read: if isAdmin();
+      allow create, update: if isAdmin()
+        && request.resource.data.amount is number && request.resource.data.amount > 0
+        && request.resource.data.name is string && request.resource.data.name.size() > 0;
+      allow delete: if isAdmin();
+    }
+  }
+}
