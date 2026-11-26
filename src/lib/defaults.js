@@ -24,6 +24,7 @@ export const DEFAULT_SETTINGS = {
   invoicePrefix: 'SNG-',
   receiptFooter: 'Thank you for visiting!',
   receiptFooter2: 'Visit Again!',
+  receiptSlogan: 'Every sip has a gossip!',
   logoDataUrl: '',
   currencySymbol: '₹',
   parcelMode: 'per_item',

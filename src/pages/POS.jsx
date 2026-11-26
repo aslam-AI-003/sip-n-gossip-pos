@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { doc, getDocFromServer, onSnapshot } from 'firebase/firestore';
 import {
-  FiSearch, FiPlus, FiMinus, FiTrash2, FiEdit3, FiX, FiShoppingBag, FiGrid, FiSave, FiCreditCard, FiRefreshCw, FiFilePlus,
+  FiSearch, FiPlus, FiMinus, FiTrash2, FiEdit3, FiX, FiShoppingBag, FiSave, FiCreditCard, FiRefreshCw, FiFilePlus,
 } from 'react-icons/fi';
 import { db } from '../firebase.js';
 import { useAuth } from '../context/AuthContext.jsx';
@@ -28,7 +28,7 @@ function blankSession() {
 
 export default function POS() {
   const { user, isAdmin } = useAuth();
-  const { settings, categories, categoryById, products, tables, ready } = useData();
+  const { settings, categories, categoryById, products, ready } = useData();
   const { online, verify } = useConnection();
   const [params, setParams] = useSearchParams();
   const navigate = useNavigate();
@@ -46,7 +46,6 @@ export default function POS() {
   const [activeCat, setActiveCat] = useState(ALL);
   const [cartOpen, setCartOpen] = useState(false);
   const [noteFor, setNoteFor] = useState(null);
-  const [tablePicker, setTablePicker] = useState(false);
   const [payOpen, setPayOpen] = useState(false);
   const [receipt, setReceipt] = useState(null);
   const [busy, setBusy] = useState(false);
@@ -161,19 +160,13 @@ export default function POS() {
     }
   }, []);
 
-  // Deep links: /pos?order=ID[&pay=1]  /pos?table=ID  /pos?type=takeaway
+  // Deep links: /pos?order=ID[&pay=1]  /pos?type=takeaway
   useEffect(() => {
     if (!ready) return;
     const orderId = params.get('order');
-    const tableId = params.get('table');
     const type = params.get('type');
     if (orderId) {
       loadOrder(orderId).then((o) => { if (o && params.get('pay') === '1') setPayOpen(true); });
-      setParams({}, { replace: true });
-    } else if (tableId) {
-      const t = tables.find((x) => x.id === tableId);
-      if (t?.activeOrderId) loadOrder(t.activeOrderId);
-      else if (t) { resetAll(); setOrderType('dine_in'); setTable({ id: t.id, name: t.name }); }
       setParams({}, { replace: true });
     } else if (type && ORDER_TYPES[type]) {
       resetAll(); setOrderType(type);
@@ -206,7 +199,6 @@ export default function POS() {
 
   const precheck = async () => {
     if (lines.length === 0) { setError({ msg: 'Add at least one item.' }); return false; }
-    if (orderType === 'dine_in' && !table) { setTablePicker(true); return false; }
     const ok = await verify();
     if (!ok) { setError({ msg: 'No connection to the server. The order was not saved.' }); return false; }
     return true;
@@ -255,17 +247,6 @@ export default function POS() {
       if (e.code === 'conflict') { setPayOpen(false); handleSaveError(e); }
       throw Object.assign(new Error(errorMessage(e)), { userMessage: errorMessage(e) });
     }
-  };
-
-  const pickTable = (t) => {
-    setTablePicker(false);
-    if (t.activeOrderId && t.activeOrderId !== session.orderId) {
-      if (dirty && lines.length && !window.confirm('Discard the unsaved cart and open this table\'s order?')) return;
-      loadOrder(t.activeOrderId);
-      return;
-    }
-    setTable({ id: t.id, name: t.name });
-    touch();
   };
 
   const newOrder = () => {
@@ -394,14 +375,9 @@ export default function POS() {
       <div className="pos-bar">
         <div className="seg">
           {Object.entries(ORDER_TYPES).map(([k, v]) => (
-            <button key={k} type="button" className={orderType === k ? 'on' : ''} onClick={() => { setOrderType(k); if (k !== 'dine_in') setTable(null); touch(); }}>{v}</button>
+            <button key={k} type="button" className={orderType === k ? 'on' : ''} onClick={() => { setOrderType(k); touch(); }}>{v}</button>
           ))}
         </div>
-        {orderType === 'dine_in' ? (
-          <button type="button" className={`btn${table ? ' gold' : ''}`} onClick={() => setTablePicker(true)}>
-            <FiGrid />{table ? table.name : 'Select table'}
-          </button>
-        ) : null}
         <div className="search grow">
           <FiSearch />
           <input
@@ -463,20 +439,6 @@ export default function POS() {
       </button>
 
       {toast ? <div className="toast" role="status">{toast}</div> : null}
-
-      {tablePicker ? (
-        <Modal title="Select table" onClose={() => setTablePicker(false)}>
-          {tables.length === 0 ? <div className="empty">No tables configured.{isAdmin ? ' Add tables in Settings.' : ''}</div> : null}
-          <div className="table-grid">
-            {tables.map((t) => (
-              <button key={t.id} type="button" className={`table-tile${t.activeOrderId ? ' busy' : ''}${table?.id === t.id ? ' sel' : ''}`} onClick={() => pickTable(t)}>
-                <span className="tt-name">{t.name}</span>
-                <span className="tt-state">{t.activeOrderId ? (t.activeOrderId === session.orderId ? 'This order' : 'Occupied · open') : 'Available'}</span>
-              </button>
-            ))}
-          </div>
-        </Modal>
-      ) : null}
 
       {payOpen ? (
         <PaymentModal

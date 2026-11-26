@@ -97,6 +97,7 @@ export default function Receipt({ order, settings, reprint = false }) {
       <div className="r-rule" />
       {settings.receiptFooter ? <div className="r-foot">{settings.receiptFooter}</div> : null}
       {settings.receiptFooter2 ? <div className="r-foot">{settings.receiptFooter2}</div> : null}
+      {settings.receiptSlogan ? <div className="r-slogan">{settings.receiptSlogan}</div> : null}
     </div>
   );
 }

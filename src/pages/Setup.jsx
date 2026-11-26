@@ -6,7 +6,7 @@ import { errorMessage } from '../lib/format.js';
 /** Shown only while /meta/setup does not exist: creates the owner (admin) account. */
 export default function Setup() {
   const { bootstrapAdmin } = useAuth();
-  const [f, setF] = useState({ name: '', email: '', password: '', confirm: '', tableCount: '8' });
+  const [f, setF] = useState({ name: '', email: '', password: '', confirm: '', tableCount: '0' });
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState('');
   const set = (k) => (e) => setF({ ...f, [k]: e.target.value });
@@ -34,7 +34,6 @@ export default function Setup() {
             <div className="field"><label>Password</label><input type="password" value={f.password} onChange={set('password')} required autoComplete="new-password" /></div>
             <div className="field"><label>Confirm</label><input type="password" value={f.confirm} onChange={set('confirm')} required autoComplete="new-password" /></div>
           </div>
-          <div className="field"><label>Number of dine-in tables (editable later)</label><input type="number" min="0" max="100" value={f.tableCount} onChange={set('tableCount')} /></div>
           <button type="submit" className="btn gold block lg" disabled={busy}>{busy ? <span className="spinner sm" /> : null}Create admin account</button>
         </form>
       </div>

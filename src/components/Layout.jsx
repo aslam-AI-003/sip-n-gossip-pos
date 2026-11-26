@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { NavLink, Outlet, useLocation } from 'react-router-dom';
 import {
-  FiShoppingCart, FiList, FiGrid, FiBarChart2, FiFileText, FiDollarSign, FiBookOpen, FiUsers, FiSettings, FiLogOut, FiMoreHorizontal,
+  FiShoppingCart, FiList, FiBarChart2, FiFileText, FiDollarSign, FiBookOpen, FiUsers, FiSettings, FiLogOut, FiMoreHorizontal,
 } from 'react-icons/fi';
 import { useAuth } from '../context/AuthContext.jsx';
 import { useConnection } from '../context/ConnectionContext.jsx';
@@ -11,7 +11,6 @@ import Modal from './Modal.jsx';
 const NAV = [
   { to: '/pos', label: 'Billing', icon: FiShoppingCart },
   { to: '/orders', label: 'Orders', icon: FiList },
-  { to: '/tables', label: 'Tables', icon: FiGrid },
   { to: '/dashboard', label: 'Dashboard', icon: FiBarChart2, admin: true },
   { to: '/reports', label: 'Reports', icon: FiFileText, admin: true },
   { to: '/expenses', label: 'Expenses', icon: FiDollarSign, admin: true },

@@ -57,7 +57,6 @@ try {
     await inputs.nth(1).fill('owner@sng.test');
     await inputs.nth(2).fill('ownerpass1');
     await inputs.nth(3).fill('ownerpass1');
-    await inputs.nth(4).fill('6');
     await page.getByRole('button', { name: 'Create admin account' }).click();
     await page.locator('.sidebar').getByText('Dashboard').waitFor({ timeout: 15000 });
     await page.locator('.conn.online').waitFor({ timeout: 15000 });
@@ -95,12 +94,14 @@ try {
     const row = page.locator('tr', { hasText: 'E2E Mojito' });
     await row.getByRole('button', { name: 'Available', exact: true }).click();
     await row.getByRole('button', { name: 'Unavailable', exact: true }).waitFor();
+    await page.locator('button[aria-busy=true]').waitFor({ state: 'detached' });
     await page.goto(`${BASE}/pos`);
     const btn = page.locator('button.product', { hasText: 'E2E Mojito' });
     if (!(await btn.isDisabled())) throw new Error('unavailable product is clickable');
     await page.goto(`${BASE}/menu`);
     await page.locator('tr', { hasText: 'E2E Mojito' }).getByRole('button', { name: 'Unavailable', exact: true }).click();
     await page.locator('tr', { hasText: 'E2E Mojito' }).getByRole('button', { name: 'Available', exact: true }).waitFor();
+    await page.locator('button[aria-busy=true]').waitFor({ state: 'detached' });
   });
 
   await check('settings: enable 5% GST and set address', async () => {
@@ -113,31 +114,34 @@ try {
     await page.getByText('Settings saved').waitFor();
   });
 
-  await check('dine-in: save active order on Table 1', async () => {
+  await check('no table UI anywhere', async () => {
     await page.goto(`${BASE}/pos`);
-    await page.getByRole('button', { name: 'Select table' }).click();
-    await page.locator('.table-tile', { hasText: 'Table 1' }).click();
+    if (await page.locator('.sidebar a', { hasText: 'Tables' }).count()) throw new Error('Tables nav still shown');
+    if (await page.getByRole('button', { name: 'Select table' }).count()) throw new Error('Select table still shown');
+    await page.goto(`${BASE}/settings`);
+    if (await page.locator('#tables').count()) throw new Error('Tables settings still shown');
+  });
+
+  await check('dine-in: save active order without a table', async () => {
+    await page.goto(`${BASE}/pos`);
     await page.locator('button.product', { hasText: 'E2E Tea' }).click();
     await page.locator('button.product', { hasText: 'E2E Tea' }).click();
     await page.locator('button.product', { hasText: 'E2E Burger' }).click();
     const total = await page.locator('.pos-cart .totals .grand span').last().innerText();
     expectEq(money(total), 168, 'grand total (160 + 5% GST)');
     await page.getByRole('button', { name: 'Save order' }).click();
-    await page.locator('.toast', { hasText: 'Order #1 saved for Table 1' }).waitFor();
+    await page.locator('.toast', { hasText: 'Order #1 saved.' }).waitFor();
     return total;
   });
 
-  await check('tables page shows Table 1 occupied', async () => {
-    await page.goto(`${BASE}/tables`);
-    const tile = page.locator('.table-tile', { hasText: 'Table 1' });
-    await tile.locator('text=#1').waitFor();
-    const cls = await tile.getAttribute('class');
-    if (!cls.includes('busy')) throw new Error('not marked occupied');
-    await page.screenshot({ path: `${OUT}/desktop-tables.png` });
+  await check('active dine-in order listed in Orders', async () => {
+    await page.goto(`${BASE}/orders`);
+    await page.locator('tr', { hasText: '#1' }).waitFor();
   });
 
-  await check('dine-in: reopen table, add items + add-on, split pay 200 cash + rest UPI', async () => {
-    await page.locator('.table-tile', { hasText: 'Table 1' }).click();
+  await check('dine-in: reopen order, add items + add-on, split pay 200 cash + rest UPI', async () => {
+    await page.locator('tr', { hasText: '#1' }).click();
+    await page.getByRole('button', { name: /Add \/ edit items/ }).click();
     await page.getByText('Order #1').first().waitFor();
     await page.locator('button.product', { hasText: 'E2E Mojito' }).click();
     await page.locator('.addon-strip button', { hasText: 'Cheese Extra' }).click();
@@ -174,7 +178,7 @@ try {
     if (Math.abs(wmm - 80) > 0.6) throw new Error(`width ${wmm.toFixed(1)}mm`);
     execFileSync('pdftoppm', ['-png', '-r', '203', '-singlefile', `${OUT}/print-output.pdf`, `${OUT}/print-output`]);
     const text = execFileSync('pdftotext', ['-layout', `${OUT}/print-output.pdf`, '-']).toString();
-    for (const s of ["SIP N' GOSSIP CAFE", 'Fresh Sips, Happy Vibes!', 'SNG-00001', 'GRAND TOTAL', '273.00', 'Cash', 'UPI', 'Thank you for visiting!', 'Visit Again!', 'Table 1', 'CGST', 'Paid']) {
+    for (const s of ["SIP N' GOSSIP CAFE", 'Fresh Sips, Happy Vibes!', 'SNG-00001', 'GRAND TOTAL', '273.00', 'Cash', 'UPI', 'Thank you for visiting!', 'Visit Again!', 'Every sip has a gossip!', 'Dine-in', 'CGST', 'Paid']) {
       if (!text.includes(s)) throw new Error(`printed receipt missing "${s}"`);
     }
     if (/Billing|Dashboard|Orders/.test(text)) throw new Error('app UI leaked into print output');
@@ -196,10 +200,9 @@ try {
     return `${dl.suggestedFilename()} ${wmm.toFixed(1)} x ${((Number(h) / 72) * 25.4).toFixed(1)} mm`;
   });
 
-  await check('table freed after billing', async () => {
-    await page.goto(`${BASE}/tables`);
-    const cls = await page.locator('.table-tile', { hasText: 'Table 1' }).getAttribute('class');
-    if (cls.includes('busy')) throw new Error('still occupied');
+  await check('billed order leaves the Active list', async () => {
+    await page.goto(`${BASE}/orders`);
+    await page.getByText('No orders.').waitFor();
   });
 
   await check('parcel: parcel charges + bill as pending, then collect from Orders', async () => {
@@ -236,24 +239,20 @@ try {
     await page.locator('.modal').getByRole('button', { name: 'Close' }).click();
   });
 
-  await check('cancel an active order frees the table', async () => {
-    await page.goto(`${BASE}/pos?table=T02`);
-    await page.getByRole('button', { name: 'Table 2' }).waitFor();
+  await check('cancel an active order', async () => {
+    await page.goto(`${BASE}/pos`);
     await page.locator('button.product', { hasText: 'E2E Tea' }).click();
     await page.getByRole('button', { name: 'Save order' }).click();
     await page.locator('.toast').waitFor();
     await page.goto(`${BASE}/orders`);
-    await page.locator('tr', { hasText: 'Table 2' }).click();
+    await page.locator('tbody tr').first().click();
     await page.getByRole('button', { name: 'Cancel order' }).click();
     await page.locator('.modal input').fill('Customer left');
     await page.locator('.modal').getByRole('button', { name: 'Cancel order' }).click();
     await page.locator('.modal .badge', { hasText: 'cancelled' }).waitFor();
     await page.locator('.modal').getByRole('button', { name: 'Close' }).click();
     await page.getByRole('button', { name: 'Cancelled', exact: true }).click();
-    await page.locator('tr', { hasText: 'Table 2' }).waitFor();
-    await page.goto(`${BASE}/tables`);
-    const cls = await page.locator('.table-tile', { hasText: 'Table 2' }).getAttribute('class');
-    if (cls.includes('busy')) throw new Error('Table 2 still occupied');
+    await page.locator('tbody tr .badge', { hasText: 'cancelled' }).first().waitFor();
   });
 
   await check('admin refund recorded', async () => {
@@ -347,7 +346,7 @@ try {
     if (await m.locator('.bottom-nav', { hasText: 'Dashboard' }).count()) throw new Error('admin nav visible');
   });
 
-  for (const path of ['/pos', '/orders', '/tables']) {
+  for (const path of ['/pos', '/orders']) {
     await check(`mobile: no horizontal scroll on ${path}`, async () => {
       await m.goto(`${BASE}${path}`);
       await m.waitForTimeout(800);

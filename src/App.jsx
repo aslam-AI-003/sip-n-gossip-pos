@@ -9,7 +9,6 @@ import Login, { AuthBrand } from './pages/Login.jsx';
 import Setup from './pages/Setup.jsx';
 import POS from './pages/POS.jsx';
 import Orders from './pages/Orders.jsx';
-import Tables from './pages/Tables.jsx';
 import { errorMessage } from './lib/format.js';
 
 const Dashboard = lazy(() => import('./pages/Dashboard.jsx'));
@@ -64,7 +63,6 @@ function Gate() {
         <Route element={<Layout />}>
           <Route path="/pos" element={<POS />} />
           <Route path="/orders" element={<Orders />} />
-          <Route path="/tables" element={<Tables />} />
           <Route path="/dashboard" element={<AdminOnly><Dashboard /></AdminOnly>} />
           <Route path="/reports" element={<AdminOnly><Reports /></AdminOnly>} />
           <Route path="/expenses" element={<AdminOnly><Expenses /></AdminOnly>} />

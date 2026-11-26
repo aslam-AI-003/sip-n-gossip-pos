@@ -57,8 +57,12 @@ export default function MenuAdmin() {
     } catch (e) { setMsg({ err: true, text: errorMessage(e) }); } finally { setBusy(false); }
   };
 
+  const [pending, setPending] = useState({});
+  // Keep the button disabled until Firestore confirms the write.
   const toggleAvail = async (p) => {
+    setPending((x) => ({ ...x, [p.id]: true }));
     try { await updateDoc(doc(db, 'products', p.id), { available: !p.available, updatedAt: serverTimestamp() }); } catch (e) { setMsg({ err: true, text: errorMessage(e) }); }
+    setPending((x) => { const { [p.id]: _, ...rest } = x; return rest; }); // eslint-disable-line no-unused-vars
   };
 
   return (
@@ -119,7 +123,8 @@ export default function MenuAdmin() {
                     />
                   </td>
                   <td>
-                    <button type="button" className={`btn sm ${p.available ? 'emerald' : 'danger'}`} onClick={() => toggleAvail(p)} disabled={!online}>
+                    <button type="button" className={`btn sm ${p.available ? 'emerald' : 'danger'}`} onClick={() => toggleAvail(p)} disabled={!online || !!pending[p.id]} aria-busy={!!pending[p.id]}>
+                      {pending[p.id] ? <span className="spinner sm" /> : null}
                       {p.available ? 'Available' : 'Unavailable'}
                     </button>
                   </td>

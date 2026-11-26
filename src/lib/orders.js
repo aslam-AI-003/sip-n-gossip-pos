@@ -129,8 +129,8 @@ async function saveOrderTx(input, settings, user) {
   const customer = cleanCustomer(input.customer);
   const discount = cleanDiscount(input.discount);
   const type = ['dine_in', 'takeaway', 'parcel'].includes(input.type) ? input.type : 'takeaway';
-  const table = type === 'dine_in' ? input.table : null;
-  if (type === 'dine_in' && !table?.id) throw new Error('Select a table for dine-in orders.');
+  // Table selection is optional (the cafe does not use tables).
+  const table = type === 'dine_in' && input.table?.id ? input.table : null;
   for (const p of input.payments || []) {
     if (!PAYMENT_METHODS[p.method]) throw new Error('Invalid payment method.');
   }

@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
-import { doc, setDoc, deleteDoc, updateDoc, serverTimestamp, writeBatch } from 'firebase/firestore';
-import { FiSave, FiPrinter, FiPlus, FiTrash2 } from 'react-icons/fi';
+import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
+import { FiSave, FiPrinter, FiPlus } from 'react-icons/fi';
 import { db } from '../firebase.js';
 import { useData } from '../context/DataContext.jsx';
 import { useConnection } from '../context/ConnectionContext.jsx';
@@ -27,7 +27,7 @@ function sampleOrder(settings) {
 }
 
 export default function Settings() {
-  const { settings, tables } = useData();
+  const { settings } = useData();
   const { online } = useConnection();
   const [f, setF] = useState(settings);
   const [busy, setBusy] = useState(false);
@@ -148,6 +148,7 @@ export default function Settings() {
             <label className="check"><input type="checkbox" checked={f.printer.autoPrintAfterPayment} onChange={setP('autoPrintAfterPayment')} />Open print dialog automatically after payment</label>
             <div className="field"><label>Footer line 1</label><input value={f.receiptFooter} onChange={set('receiptFooter')} /></div>
             <div className="field"><label>Footer line 2</label><input value={f.receiptFooter2} onChange={set('receiptFooter2')} /></div>
+            <div className="field"><label>Slogan (last line of the bill)</label><input value={f.receiptSlogan} onChange={set('receiptSlogan')} /></div>
             <div className="row wrap">
               <button type="button" className="btn" onClick={() => printReceipt(sampleOrder(f), f)}><FiPrinter />Print test receipt</button>
               <button type="button" className="btn" onClick={() => downloadReceiptPdf(sampleOrder(f), f)}>Test PDF</button>
@@ -184,68 +185,6 @@ export default function Settings() {
         </div>
       </section>
 
-      <TablesEditor tables={tables} online={online} />
     </div>
-  );
-}
-
-function TablesEditor({ tables, online }) {
-  const [name, setName] = useState('');
-  const [err, setErr] = useState('');
-  const [busy, setBusy] = useState(false);
-
-  const add = async () => {
-    const n = name.trim();
-    if (!n) return;
-    if (tables.some((t) => t.name.toLowerCase() === n.toLowerCase())) { setErr('A table with that name exists.'); return; }
-    setErr(''); setBusy(true);
-    try {
-      const id = `T${Date.now().toString(36).toUpperCase()}`;
-      await setDoc(doc(db, 'tables', id), { name: n, seats: 4, sortOrder: tables.length + 1, activeOrderId: null, updatedAt: serverTimestamp() });
-      setName('');
-    } catch (e) { setErr(errorMessage(e)); } finally { setBusy(false); }
-  };
-  const rename = async (t, v) => {
-    if (!v.trim() || v === t.name) return;
-    try { await updateDoc(doc(db, 'tables', t.id), { name: v.trim() }); } catch (e) { setErr(errorMessage(e)); }
-  };
-  const remove = async (t) => {
-    if (t.activeOrderId) { setErr(`${t.name} has an active order. Close it first.`); return; }
-    if (!window.confirm(`Remove ${t.name}?`)) return;
-    try { await deleteDoc(doc(db, 'tables', t.id)); } catch (e) { setErr(errorMessage(e)); }
-  };
-  const addMany = async () => {
-    const count = Number(window.prompt('How many tables to add?', '5'));
-    if (!(count > 0 && count <= 50)) return;
-    setBusy(true);
-    try {
-      const b = writeBatch(db);
-      for (let i = 1; i <= count; i += 1) {
-        const num = tables.length + i;
-        b.set(doc(db, 'tables', `T${Date.now().toString(36).toUpperCase()}${i}`), { name: `Table ${num}`, seats: 4, sortOrder: num, activeOrderId: null, updatedAt: serverTimestamp() });
-      }
-      await b.commit();
-    } catch (e) { setErr(errorMessage(e)); } finally { setBusy(false); }
-  };
-
-  return (
-    <section className="card" id="tables">
-      <div className="card-title"><h2>Tables</h2><button type="button" className="btn sm" onClick={addMany} disabled={busy || !online}>Add several</button></div>
-      {err ? <div className="alert error">{err}</div> : null}
-      <div className="grid-3">
-        {tables.map((t) => (
-          <div key={t.id} className="row">
-            <input className="grow" defaultValue={t.name} onBlur={(e) => rename(t, e.target.value)} aria-label="Table name" />
-            {t.activeOrderId ? <span className="badge gold">Occupied</span> : (
-              <button type="button" className="btn ghost icon-btn" onClick={() => remove(t)} disabled={!online} aria-label={`Remove ${t.name}`}><FiTrash2 /></button>
-            )}
-          </div>
-        ))}
-      </div>
-      <div className="row" style={{ marginTop: 12, maxWidth: 420 }}>
-        <input className="grow" placeholder="New table name e.g. Table 9, Sofa 1" value={name} onChange={(e) => setName(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && add()} />
-        <button type="button" className="btn" onClick={add} disabled={busy || !online}><FiPlus />Add</button>
-      </div>
-    </section>
   );
 }

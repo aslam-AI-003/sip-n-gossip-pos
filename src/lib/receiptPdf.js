@@ -114,6 +114,7 @@ export async function buildReceiptPdf(order, settings) {
     rule();
     if (settings.receiptFooter) center(settings.receiptFooter, 'bold', 9);
     if (settings.receiptFooter2) center(settings.receiptFooter2, 'bold', 9);
+    if (settings.receiptSlogan) { y += 1; center(settings.receiptSlogan, 'bolditalic', 9); }
     return y + 4;
   };
 
