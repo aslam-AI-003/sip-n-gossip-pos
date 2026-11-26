@@ -17,9 +17,9 @@ function sampleOrder(settings) {
     { lineId: '2', name: 'Sample item', price: 50, qty: 1, note: '' },
     { lineId: '3', name: 'Cheese Extra', price: 10, qty: 1, isAddon: true, note: '' },
   ];
-  const totals = computeTotals(items, { type: 'flat', value: 10 }, 'parcel', billConfigFromSettings(settings));
+  const totals = computeTotals(items, { type: 'flat', value: 10 }, 'takeaway', billConfigFromSettings(settings));
   return {
-    id: 'test', billNo: `${settings.invoicePrefix}TEST`, orderNo: 0, type: 'parcel', tableName: null,
+    id: 'test', billNo: `${settings.invoicePrefix}TEST`, orderNo: 0, type: 'takeaway', tableName: null,
     customer: { name: 'Test customer', phone: '' }, items, discount: { type: 'flat', value: 10 }, totals, grandTotal: totals.grandTotal,
     payments: [{ id: 'p', method: 'cash', amount: totals.grandTotal, tendered: 500, change: 500 - totals.grandTotal }],
     amountPaid: totals.grandTotal, amountRefunded: 0, paymentStatus: 'paid', status: 'completed', createdAt: new Date(), billedAt: new Date(), billedByName: 'Test',
@@ -59,7 +59,7 @@ export default function Settings() {
         printer: { ...f.printer, paperWidthMm: pw, contentWidthMm: cw, fontSizePx: Number(f.printer.fontSizePx) || 12 },
         updatedAt: serverTimestamp(),
       });
-      setMsg({ text: 'Settings saved. GST and parcel changes apply to new orders.' });
+      setMsg({ text: 'Settings saved. GST changes apply to new orders.' });
     } catch (e) { setMsg({ err: true, text: errorMessage(e) }); } finally { setBusy(false); }
   };
 
@@ -104,16 +104,9 @@ export default function Settings() {
           <label className="check"><input type="checkbox" checked={f.gstEnabled} onChange={set('gstEnabled')} />Charge GST</label>
           <div className="field"><label>GST % (split equally into CGST + SGST)</label><input type="number" inputMode="decimal" min="0" max="100" step="0.01" value={f.gstPercent} onChange={set('gstPercent')} disabled={!f.gstEnabled} /></div>
           <div className="field"><label>Invoice prefix</label><input value={f.invoicePrefix} onChange={set('invoicePrefix')} maxLength={10} /></div>
-          <div className="field"><label>Parcel charge (₹)</label><input type="number" inputMode="decimal" min="0" value={f.parcelCharge} onChange={set('parcelCharge')} /></div>
-          <div className="field"><label>Parcel charge applies</label>
-            <select value={f.parcelMode} onChange={set('parcelMode')}>
-              <option value="per_item">Per item quantity (add-ons excluded)</option>
-              <option value="per_order">Once per order</option>
-            </select>
-          </div>
           <label className="check"><input type="checkbox" checked={f.roundOff} onChange={set('roundOff')} />Round grand total to nearest ₹1</label>
         </div>
-        <p className="muted" style={{ fontSize: 13, margin: 0 }}>Parcel charges apply only to Parcel orders, never to Dine-in or Takeaway. GST is calculated on (subtotal − discount + parcel charges).</p>
+        <p className="muted" style={{ fontSize: 13, margin: 0 }}>GST is calculated on (subtotal − discount).</p>
       </section>
 
       <section className="card">
@@ -148,7 +141,7 @@ export default function Settings() {
             <label className="check"><input type="checkbox" checked={f.printer.autoPrintAfterPayment} onChange={setP('autoPrintAfterPayment')} />Open print dialog automatically after payment</label>
             <div className="field"><label>Footer line 1</label><input value={f.receiptFooter} onChange={set('receiptFooter')} /></div>
             <div className="field"><label>Footer line 2</label><input value={f.receiptFooter2} onChange={set('receiptFooter2')} /></div>
-            <div className="field"><label>Slogan (last line of the bill)</label><input value={f.receiptSlogan} onChange={set('receiptSlogan')} /></div>
+            <div className="field"><label>Slogan (printed under the shop name)</label><input value={f.receiptSlogan} onChange={set('receiptSlogan')} /></div>
             <div className="row wrap">
               <button type="button" className="btn" onClick={() => printReceipt(sampleOrder(f), f)}><FiPrinter />Print test receipt</button>
               <button type="button" className="btn" onClick={() => downloadReceiptPdf(sampleOrder(f), f)}>Test PDF</button>

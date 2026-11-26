@@ -23,6 +23,7 @@ export default function Receipt({ order, settings, reprint = false }) {
     >
       {p.showLogo && settings.logoDataUrl ? <img className="r-logo" src={settings.logoDataUrl} alt="" /> : null}
       <div className="r-name">{settings.restaurantName}</div>
+      {settings.receiptSlogan ? <div className="r-slogan">{settings.receiptSlogan}</div> : null}
       {settings.tagline ? <div className="r-tag">{settings.tagline}</div> : null}
       {settings.address ? <div className="r-center r-small">{settings.address}</div> : null}
       {settings.phone ? <div className="r-center r-small">Ph: {settings.phone}</div> : null}
@@ -97,7 +98,6 @@ export default function Receipt({ order, settings, reprint = false }) {
       <div className="r-rule" />
       {settings.receiptFooter ? <div className="r-foot">{settings.receiptFooter}</div> : null}
       {settings.receiptFooter2 ? <div className="r-foot">{settings.receiptFooter2}</div> : null}
-      {settings.receiptSlogan ? <div className="r-slogan">{settings.receiptSlogan}</div> : null}
     </div>
   );
 }

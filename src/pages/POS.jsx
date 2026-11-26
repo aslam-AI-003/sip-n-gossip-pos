@@ -18,6 +18,8 @@ import ReceiptModal from '../components/ReceiptModal.jsx';
 import Modal from '../components/Modal.jsx';
 import './POS.css';
 
+// Parcel is not offered for new bills (old parcel bills still display correctly).
+const BILLING_TYPES = ['dine_in', 'takeaway'];
 const ALL = '__all__';
 const ADDONS = '__addons__';
 const lineKey = () => Math.random().toString(36).slice(2, 10) + Date.now().toString(36);
@@ -168,7 +170,7 @@ export default function POS() {
     if (orderId) {
       loadOrder(orderId).then((o) => { if (o && params.get('pay') === '1') setPayOpen(true); });
       setParams({}, { replace: true });
-    } else if (type && ORDER_TYPES[type]) {
+    } else if (type && BILLING_TYPES.includes(type)) {
       resetAll(); setOrderType(type);
       setParams({}, { replace: true });
     }
@@ -374,7 +376,7 @@ export default function POS() {
     <div className="pos">
       <div className="pos-bar">
         <div className="seg">
-          {Object.entries(ORDER_TYPES).map(([k, v]) => (
+          {Object.entries(ORDER_TYPES).filter(([k]) => BILLING_TYPES.includes(k)).map(([k, v]) => (
             <button key={k} type="button" className={orderType === k ? 'on' : ''} onClick={() => { setOrderType(k); touch(); }}>{v}</button>
           ))}
         </div>

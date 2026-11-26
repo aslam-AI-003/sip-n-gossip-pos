@@ -182,6 +182,10 @@ try {
       if (!text.includes(s)) throw new Error(`printed receipt missing "${s}"`);
     }
     if (/Billing|Dashboard|Orders/.test(text)) throw new Error('app UI leaked into print output');
+    const iName = text.indexOf("SIP N' GOSSIP CAFE");
+    const iSlogan = text.indexOf('Every sip has a gossip!');
+    if (!(iName < iSlogan && iSlogan < text.indexOf('Bill No'))) throw new Error('slogan is not directly under the shop name');
+    if (text.indexOf('Every sip has a gossip!', iSlogan + 5) !== -1) throw new Error('slogan printed twice');
     return `${pages} page, ${wmm.toFixed(1)} x ${hmm.toFixed(1)} mm`;
   });
 
@@ -205,14 +209,18 @@ try {
     await page.getByText('No orders.').waitFor();
   });
 
-  await check('parcel: parcel charges + bill as pending, then collect from Orders', async () => {
-    await page.goto(`${BASE}/pos?type=parcel`);
-    await page.locator('.pos-bar .seg button.on', { hasText: 'Parcel' }).waitFor();
+  await check('no Parcel option on billing page', async () => {
+    await page.goto(`${BASE}/pos`);
+    await page.locator('.pos-bar .seg button', { hasText: 'Takeaway' }).waitFor();
+    if (await page.locator('.pos-bar .seg button', { hasText: 'Parcel' }).count()) throw new Error('Parcel still offered');
+  });
+
+  await check('takeaway: bill as pending, then collect from Orders', async () => {
+    await page.goto(`${BASE}/pos?type=takeaway`);
+    await page.locator('.pos-bar .seg button.on', { hasText: 'Takeaway' }).waitFor();
     await page.locator('button.product', { hasText: 'E2E Veg Combo' }).click();
-    const parcel = await page.locator('.pos-cart .totals div', { hasText: 'Parcel charges' }).innerText();
-    if (!parcel.includes('5.00')) throw new Error(`parcel line: ${parcel}`);
-    // 199 + 5 = 204, GST 10.20 -> 214.20 -> rounded 214
-    expectEq(money(await page.locator('.pos-cart .totals .grand span').last().innerText()), 214, 'parcel total');
+    // 199 + 5% GST 9.95 = 208.95 -> rounded 209
+    expectEq(money(await page.locator('.pos-cart .totals .grand span').last().innerText()), 209, 'takeaway total');
     await page.getByRole('button', { name: /^Pay / }).click();
     await page.getByRole('button', { name: 'Bill as pending (no payment)' }).click();
     await page.getByText('Saved · SNG-00002').waitFor();
@@ -272,14 +280,14 @@ try {
     await page.locator('.kpi').first().waitFor();
     await page.waitForTimeout(1500);
     const kpi = async (k) => money(await page.locator('.kpi', { hasText: k }).locator('.v').innerText());
-    // Bills: 273 + 214 + 209 (199 + 9.95 GST = 208.95 -> 209)
-    expectEq(await kpi('Today sales'), 696, 'today sales');
+    // Bills: 273 + 209 + 209
+    expectEq(await kpi('Today sales'), 691, 'today sales');
     expectEq(await kpi('Bills'), 3, 'bills');
     expectEq(await kpi('Cash'), 200 + 209, 'cash');
-    expectEq(await kpi('UPI'), 73 + 214, 'upi');
+    expectEq(await kpi('UPI'), 73 + 209, 'upi');
     expectEq(await kpi('Pending payments'), 0, 'pending');
-    // profit = 696 - GST(13 + 10.20 + 9.95) - refund 50 - expenses 0 = 612.85
-    expectEq(await kpi('Estimated profit'), 612.85, 'profit');
+    // profit = 691 - GST(13 + 9.95 + 9.95) - refund 50 - expenses 0 = 608.10
+    expectEq(await kpi('Estimated profit'), 608.1, 'profit');
     await page.screenshot({ path: `${OUT}/desktop-dashboard.png`, fullPage: true });
   });
 
@@ -288,7 +296,7 @@ try {
     await page.getByRole('button', { name: 'Add expense' }).click();
     await page.locator('.modal input').first().fill('Milk');
     await page.locator('.modal select').first().selectOption('Milk & dairy');
-    await page.locator('.modal input[type=number]').fill('112.85');
+    await page.locator('.modal input[type=number]').fill('108.10');
     await page.locator('.modal').getByRole('button', { name: 'Save' }).click();
     await page.locator('tr', { hasText: 'Milk' }).waitFor();
     await page.goto(`${BASE}/dashboard`);
@@ -299,7 +307,7 @@ try {
   await check('reports + CSV/Excel/PDF exports', async () => {
     await page.goto(`${BASE}/reports`);
     await page.locator('.kpi', { hasText: 'Total revenue' }).waitFor();
-    expectEq(money(await page.locator('.kpi', { hasText: 'Total revenue' }).locator('.v').innerText()), 696, 'revenue');
+    expectEq(money(await page.locator('.kpi', { hasText: 'Total revenue' }).locator('.v').innerText()), 691, 'revenue');
     const files = [];
     for (const name of ['CSV', 'Excel', 'PDF']) {
       const [dl] = await Promise.all([page.waitForEvent('download'), page.getByRole('button', { name, exact: true }).click()]);

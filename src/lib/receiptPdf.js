@@ -41,6 +41,7 @@ export async function buildReceiptPdf(order, settings) {
       } catch { /* ignore bad logo */ }
     }
     center(settings.restaurantName, 'bold', 14);
+    if (settings.receiptSlogan) center(settings.receiptSlogan, 'bolditalic', 9.5);
     if (settings.tagline) center(settings.tagline, 'italic', 9);
     if (settings.address) center(settings.address, 'normal', 8);
     if (settings.phone) center(`Ph: ${settings.phone}`, 'normal', 8);
@@ -114,7 +115,6 @@ export async function buildReceiptPdf(order, settings) {
     rule();
     if (settings.receiptFooter) center(settings.receiptFooter, 'bold', 9);
     if (settings.receiptFooter2) center(settings.receiptFooter2, 'bold', 9);
-    if (settings.receiptSlogan) { y += 1; center(settings.receiptSlogan, 'bolditalic', 9); }
     return y + 4;
   };
 
